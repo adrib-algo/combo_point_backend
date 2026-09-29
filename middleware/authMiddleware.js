@@ -11,7 +11,11 @@ export const protectAdmin = async (req, res, next) => {
 
       req.user = await User.findById(decoded.id).select("-password");
 
-      if (!req.user || req.user.role !== "admin") {
+      if (!req.user) {
+        return res.status(401).json({ success: false, message: "Not authorized, user session expired or user deleted" });
+      }
+
+      if (req.user.role !== "admin") {
         return res.status(403).json({ success: false, message: "Not authorized as admin" });
       }
 

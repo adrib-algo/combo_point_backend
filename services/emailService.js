@@ -1,138 +1,140 @@
-import nodemailer from "nodemailer";
+﻿import nodemailer from 'nodemailer';
 
 const createTransporter = () => {
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_APP_PASSWORD || process.env.EMAIL_PASSWORD;
-  const host = process.env.EMAIL_HOST || "smtp.gmail.com";
-  const port = Number(process.env.EMAIL_PORT) || 587;
-
-  if (user && pass) {
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     return nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
       auth: {
-        user,
-        pass
-      }
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
     });
   }
   return null;
 };
 
-export const sendCustomerOrderReceiptEmail = async (order) => {
-  const transporter = createTransporter();
-  const itemsList = order.items.map((i) => `${i.name} × ${i.quantity} (₹${i.price})`).join("\n");
-  const textContent = `Hello ${order.customerName},
-
-Your Combo Point order ${order.orderNumber} has been received successfully.
-
-Items:
-${itemsList}
-
-Total: ₹${order.totalAmount}
-
-Delivery Address:
-${order.deliveryAddress}, ${order.landmark}, PIN: ${order.pinCode}
-
-We will confirm your order shortly.
-
-Thank you for choosing Combo Point.`;
-
-  if (!transporter) {
-    console.log("[EMAIL SERVICE LOG - CUSTOMER RECEIPT]\n" + textContent);
-    return;
-  }
-
-  try {
-    const fromAddr = process.env.EMAIL_FROM || (`"Combo Point" <` + process.env.EMAIL_USER + `>`);
-    await transporter.sendMail({
-      from: fromAddr,
-      to: order.email,
-      subject: `Combo Point \u2014 Order Received \u2014 ${order.orderNumber}`,
-      text: textContent
-    });
-    console.log(`[EMAIL SENT] Customer receipt sent to ${order.email} for order ${order.orderNumber}`);
-  } catch (err) {
-    console.error(`Customer email delivery error for order ${order.orderNumber}:`, err.message);
-  }
-};
-
+// Admin New Order Alert Email (Main Orders & Free Taste)
 export const sendAdminNewOrderAlertEmail = async (order) => {
-  const transporter = createTransporter();
-  const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
-  const itemsList = order.items.map((i) => `${i.name} × ${i.quantity} (₹${i.price})`).join("\n");
-  const textContent = `New Order Arrived
-
-Order ID: ${order.orderNumber}
-
-Customer:
-${order.customerName}
-
-Phone:
-${order.phone}
-
-Email:
-${order.email}
-
-Delivery Address:
-${order.deliveryAddress}, ${order.landmark}, PIN: ${order.pinCode}
-
-Items:
-${itemsList}
-
-Total:
-₹${order.totalAmount}
-
-Status:
-${order.status}
-
-Please check the Combo Point admin dashboard.`;
-
-  if (!transporter || !adminEmail) {
-    console.log("[EMAIL SERVICE LOG - ADMIN NEW ORDER ALERT]\n" + textContent);
-    return;
-  }
-
   try {
-    const fromAddr = process.env.EMAIL_FROM || (`"Combo Point System" <` + process.env.EMAIL_USER + `>`);
-    await transporter.sendMail({
-      from: fromAddr,
+    const transporter = createTransporter();
+    const adminEmail = process.env.NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'combopointcafe@gmail.com';
+
+    const isFreeTaste = order.orderType === 'FREE_TASTE';
+    const emailSubject = isFreeTaste
+      ? `New Free Taste Request - Token #${order.tokenNumber || 'N/A'}`
+      : `New Main Order - Token #${order.tokenNumber || 'N/A'}`;
+
+    const itemsFormatted = order.items && order.items.length > 0
+      ? order.items.map(item => `  • ${item.name} × ${item.quantity} (₹${item.price})`).join('\n')
+      : '  No items specified';
+
+    const emailBody = `
+==================================================
+${isFreeTaste ? 'NEW FREE TASTE REQUEST RECEIVED' : 'NEW MAIN ORDER RECEIVED'}
+==================================================
+
+Token Number:     #${order.tokenNumber || 'N/A'}
+Customer Name:    ${order.customerName || 'N/A'}
+Contact Phone:    ${order.phone || order.customerPhone || 'N/A'}
+Delivery Address: ${order.deliveryAddress || 'N/A'}
+Order Type:       ${isFreeTaste ? 'Free Taste Request' : (order.mainOrderSubMode || order.orderType || 'Instant Order')}
+Delivery Date:    ${order.deliveryDate || 'N/A'}
+Delivery Time:    ${order.deliveryTime || order.preferredDeliveryTime || 'N/A'}
+Order Status:     ${order.status || 'Pending'}
+Created At:       ${order.createdAt ? new Date(order.createdAt).toLocaleString() : new Date().toLocaleString()}
+
+--------------------------------------------------
+ORDER ITEMS:
+${itemsFormatted}
+
+--------------------------------------------------
+Total Amount:     ₹${order.totalAmount || 0}
+==================================================
+`;
+
+    console.log(`[EMAIL DISPATCH] Alert email to ${adminEmail} for Token #${order.tokenNumber}...`);
+    
+    if (!transporter) {
+      console.log(`[EMAIL DISPATCH - SIMULATED] SMTP not configured. Logged details:\nSubject: ${emailSubject}\nRecipient: ${adminEmail}\nContent:\n${emailBody}`);
+      return true;
+    }
+
+    const info = await transporter.sendMail({
+      from: `"Combo Point Alert" <${process.env.SMTP_USER || 'no-reply@combopoint.com'}>`,
       to: adminEmail,
-      subject: `\uD83D\uDD14 New Order Arrived \u2014 ${order.orderNumber}`,
-      text: textContent
+      subject: emailSubject,
+      text: emailBody,
     });
-    console.log(`[EMAIL SENT] Admin alert sent to ${adminEmail} for order ${order.orderNumber}`);
-  } catch (err) {
-    console.error(`Admin alert email delivery error for order ${order.orderNumber}:`, err.message);
+
+    console.log(`[EMAIL DISPATCH SUCCESS] Sent ID: ${info.messageId}`);
+    return true;
+  } catch (error) {
+    console.error(`[EMAIL DISPATCH ERROR] Non-blocking failure:`, error.message);
+    return false;
   }
 };
 
-export const sendCustomerOrderConfirmationEmail = async (order) => {
-  const transporter = createTransporter();
-  const textContent = `Hello ${order.customerName},
-
-Your Combo Point order ${order.orderNumber} has been confirmed.
-
-We are processing your order.
-
-Thank you for choosing Combo Point!`;
-
-  if (!transporter) {
-    console.log("[EMAIL SERVICE LOG - CUSTOMER CONFIRMATION]\n" + textContent);
-    return;
-  }
-
+// Customer Order Receipt Email
+export const sendCustomerOrderReceiptEmail = async (order) => {
   try {
-    const fromAddr = process.env.EMAIL_FROM || (`"Combo Point" <` + process.env.EMAIL_USER + `>`);
+    if (!order.email) return true;
+    const transporter = createTransporter();
+    const emailSubject = `Combo Point Order Receipt - Token #${order.tokenNumber || 'N/A'}`;
+    const emailBody = `Hello ${order.customerName},\n\nThank you for ordering from Combo Point! Your token number is #${order.tokenNumber}.\nTotal: ₹${order.totalAmount}\nStatus: ${order.status}\n\nWe appreciate your business!`;
+
+    if (!transporter) {
+      console.log(`[EMAIL DISPATCH - SIMULATED] Receipt to customer ${order.email}:\n${emailBody}`);
+      return true;
+    }
+
     await transporter.sendMail({
-      from: fromAddr,
+      from: `"Combo Point" <${process.env.SMTP_USER || 'no-reply@combopoint.com'}>`,
       to: order.email,
-      subject: `Combo Point \u2014 Order Confirmed \u2014 ${order.orderNumber}`,
-      text: textContent
+      subject: emailSubject,
+      text: emailBody,
     });
-    console.log(`[EMAIL SENT] Customer confirmation email sent to ${order.email} for order ${order.orderNumber}`);
-  } catch (err) {
-    console.error(`Confirmation email delivery error for order ${order.orderNumber}:`, err.message);
+    return true;
+  } catch (error) {
+    console.error(`[EMAIL DISPATCH ERROR] Non-blocking receipt failure:`, error.message);
+    return false;
   }
+};
+
+// Customer Order Confirmation Email
+export const sendCustomerOrderConfirmationEmail = async (order) => {
+  try {
+    if (!order.email) return true;
+    const transporter = createTransporter();
+    const emailSubject = `Order Confirmed - Token #${order.tokenNumber || 'N/A'}`;
+    const emailBody = `Hello ${order.customerName},\n\nYour order #${order.tokenNumber} has been ${order.status}!\nThank you for choosing Combo Point.`;
+
+    if (!transporter) {
+      console.log(`[EMAIL DISPATCH - SIMULATED] Confirmation to customer ${order.email}:\n${emailBody}`);
+      return true;
+    }
+
+    await transporter.sendMail({
+      from: `"Combo Point" <${process.env.SMTP_USER || 'no-reply@combopoint.com'}>`,
+      to: order.email,
+      subject: emailSubject,
+      text: emailBody,
+    });
+    return true;
+  } catch (error) {
+    console.error(`[EMAIL DISPATCH ERROR] Non-blocking confirmation failure:`, error.message);
+    return false;
+  }
+};
+
+export const sendMainOrderNotification = sendAdminNewOrderAlertEmail;
+export const sendFreeTasteNotification = sendAdminNewOrderAlertEmail;
+
+export default {
+  sendAdminNewOrderAlertEmail,
+  sendCustomerOrderReceiptEmail,
+  sendCustomerOrderConfirmationEmail,
+  sendMainOrderNotification,
+  sendFreeTasteNotification,
 };

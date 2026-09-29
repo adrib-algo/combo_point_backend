@@ -41,12 +41,12 @@ const seedData = async () => {
       bannerUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80",
       aboutText: "Combo Point offers delicious, freshly prepared food combos, momos, and quick bites at New Barrackpore. Experience high quality taste with unmatched combo value!",
       physicalLocation: "New Barrackpore, near Axis Bank, opposite Monda Mithai Store",
-      contactPhone: "+91 98765 43210",
-      contactEmail: "contact@combopoint.com",
+      contactPhone: "7439709997",
+      contactEmail: "combopointcafe@gmail.com",
       socialLinks: {
         facebook: "https://facebook.com/combopoint",
         instagram: "https://instagram.com/combopoint",
-        whatsapp: "https://wa.me/919876543210"
+        whatsapp: "https://wa.me/917439709997"
       }
     });
     console.log("Business Info seeded.");

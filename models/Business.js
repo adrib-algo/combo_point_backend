@@ -13,8 +13,8 @@ const businessSchema = new mongoose.Schema({
     type: String,
     default: "New Barrackpore, near Axis Bank, opposite Monda Mithai Store"
   },
-  contactPhone: { type: String, default: "+91 98765 43210" },
-  contactEmail: { type: String, default: "contact@combopoint.com" },
+  contactPhone: { type: String, default: "7439709997" },
+  contactEmail: { type: String, default: "combopointcafe@gmail.com" },
   socialLinks: {
     facebook: { type: String, default: "" },
     instagram: { type: String, default: "" },
